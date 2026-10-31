@@ -1,20 +1,25 @@
 --[[
 ================================================================================
     ONE EIGHT HUB (IN-GAME EDITION) - CDID TRUCK DRIVER
-    UI: WindUI v1.6.66 (Modern Glassmorphism by Footagesus)
-    Engine: 100% Identik dengan Backend/Lua-Storage (Job.lua & Waypoint.lua)
+    100% VERBATIM SOURCE FROM BACKEND/LUA-STORAGE:
+    - games/cdid/shared/network.lua
+    - games/cdid/shared/prompt.lua
+    - games/cdid/shared/replica.lua
+    - games/cdid/shared/vehicle.lua
+    - games/cdid/plugins/truck/waypoint.lua
+    - games/cdid/plugins/truck/job.lua
+    UI: WindUI v1.6.66 (Footagesus)
 ================================================================================
 --]]
 
--- [CORE SERVICES]
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
-local LocalPlayer = Players.LocalPlayer
 
--- [LIGHTWEIGHT TROVE]
+-- [ENVIRONMENT DISPATCHER EMULATOR]
+local _Modules = {}
+
 local Trove = {
     new = function()
         local t = { _objects = {} }
@@ -40,10 +45,71 @@ local Trove = {
     end
 }
 
+local Scheduler = {
+    Sleep = task.wait,
+    Spawn = task.spawn,
+    WaitFor = function(predicate, timeoutSeconds, pollInterval)
+        local start = os.clock()
+        timeoutSeconds = timeoutSeconds or 10.0
+        pollInterval = pollInterval or 0.1
+        while (os.clock() - start) < timeoutSeconds do
+            local ok, res = pcall(predicate)
+            if ok and res then return true, res end
+            task.wait(pollInterval)
+        end
+        return false, nil
+    end
+}
+
+local Log = {
+    Enabled = false,
+    SetEnabled = function(self, s) self.Enabled = (s == true) end,
+    Scope = function(name) return Log end,
+    Info = function(...) end,
+    Warn = function(...) end,
+    Success = function(...) end,
+    Error = function(...) end
+}
+
+local Notify = {
+    Success = function(...) end,
+    Warn = function(...) end,
+    Error = function(...) end
+}
+
+local Dispatcher = {
+    LoadSubmodule = function(subPath)
+        for k, v in pairs(_Modules) do
+            if subPath:find(k) then
+                return v
+            end
+        end
+        return nil
+    end,
+    Util = {
+        Get = function(toolName)
+            if toolName == "Trove" then return Trove end
+            if toolName == "Scheduler" then return Scheduler end
+            if toolName == "Logger" then return Log end
+            if toolName == "Notify" then return Notify end
+            return nil
+        end,
+        Scheduler = Scheduler,
+        Logger = Log,
+        Notify = Notify,
+        Trove = Trove
+    },
+    ReportJobState = function(...) end,
+    Publish = function(...) end,
+    ActiveStates = {}
+}
+
+_G.OE_Dispatcher = Dispatcher
+
 -- ==============================================================================
--- 1. SUBMODULE: CDID_Network (games/cdid/shared/network.lua)
+-- [1/6] VERBATIM: games/cdid/shared/network.lua
 -- ==============================================================================
-local CDID_Network = (function()
+_Modules["network"] = (function()
 --[[
 ================================================================================
     OE HUB v2 - CDID SHARED MODULE: NETWORK & REMOTE GATEWAY
@@ -147,9 +213,9 @@ return CDID_NetworkHelper
 end)()
 
 -- ==============================================================================
--- 2. SUBMODULE: PromptHelper (games/cdid/shared/prompt.lua)
+-- [2/6] VERBATIM: games/cdid/shared/prompt.lua
 -- ==============================================================================
-local PromptHelper = (function()
+_Modules["prompt"] = (function()
 --[[
 ================================================================================
     OE HUB v2 - CDID SHARED MODULE: PROXIMITY PROMPT HELPER
@@ -298,9 +364,9 @@ return PromptHelper
 end)()
 
 -- ==============================================================================
--- 3. SUBMODULE: ReplicaBridge (games/cdid/shared/replica.lua)
+-- [3/6] VERBATIM: games/cdid/shared/replica.lua
 -- ==============================================================================
-local ReplicaBridge = (function()
+_Modules["replica"] = (function()
 --[[
 ================================================================================
     OE HUB v2 - CDID SHARED MODULE: REPLICA CONTROLLER BRIDGE (SSOT)
@@ -468,9 +534,9 @@ return ReplicaBridge
 end)()
 
 -- ==============================================================================
--- 4. SUBMODULE: Vehicle (games/cdid/shared/vehicle.lua)
+-- [4/6] VERBATIM: games/cdid/shared/vehicle.lua
 -- ==============================================================================
-local Vehicle = (function()
+_Modules["vehicle"] = (function()
 --[[
 ================================================================================
     OE HUB v2 - CDID SHARED MODULE: VEHICLE & CAR CONTROLLER
@@ -743,9 +809,9 @@ return Vehicle
 end)()
 
 -- ==============================================================================
--- 5. SUBMODULE: Waypoint (games/cdid/plugins/truck/waypoint.lua)
+-- [5/6] VERBATIM: games/cdid/plugins/truck/waypoint.lua
 -- ==============================================================================
-local Waypoint = (function()
+_Modules["waypoint"] = (function()
 --[[
 ================================================================================
     OE HUB v2 - CDID TRUCK DRIVER: PURE 100% EVENT-DRIVEN WAYPOINT MODULE
@@ -884,53 +950,9 @@ return Waypoint
 end)()
 
 -- ==============================================================================
--- 6. MAIN ENGINE: Job (100% Persis games/cdid/plugins/truck/job.lua)
+-- [6/6] VERBATIM: games/cdid/plugins/truck/job.lua (100% PERSIS TANPA UBAH 1 HURUF)
 -- ==============================================================================
 local Job = (function()
-    local requireShared = function(name)
-        if name == "network" then return CDID_Network end
-        if name == "prompt" then return PromptHelper end
-        if name == "replica" then return ReplicaBridge end
-        if name == "vehicle" then return Vehicle end
-        return nil
-    end
-
-    local getTool = function(name)
-        if name == "Trove" then return Trove end
-        return nil
-    end
-
-    local Log = {
-        Enabled = false,
-        SetEnabled = function(self, s) self.Enabled = (s == true) end,
-        Info = function(...) end,
-        Warn = function(...) end,
-        Success = function(...) end,
-        Error = function(...) end
-    }
-
-    local Notify = {
-        Success = function(...) end,
-        Warn = function(...) end,
-        Error = function(...) end
-    }
-
-    local Scheduler = {
-        Sleep = task.wait,
-        Spawn = task.spawn,
-        WaitFor = function(predicate, timeoutSeconds, pollInterval)
-            local start = os.clock()
-            timeoutSeconds = timeoutSeconds or 10.0
-            pollInterval = pollInterval or 0.1
-            while (os.clock() - start) < timeoutSeconds do
-                local ok, res = pcall(predicate)
-                if ok and res then return true, res end
-                task.wait(pollInterval)
-            end
-            return false, nil
-        end
-    }
-
 --[[
 ================================================================================
     OE HUB v2 - CDID TRUCK DRIVER JOB CONTROLLER (PURE STATE MACHINE)
@@ -1490,7 +1512,7 @@ local function rerollDepotRoute(root, starterPrompt)
         Job.State.CurrentRoute = wp.Name or "Destination"
 
         -- Verifikasi Strict Rute Terbaik CDID: Index 3 (Sidoarjo) atau Index 4 (Malang)
-        local isBestRoute = (wp.RouteIndex == 3 or wp.RouteIndex == 4 or tonumber(wp.RouteIndex) == 3 or tonumber(wp.RouteIndex) == 4) or (dist >= Job.Config.MinDistance)
+        local isBestRoute = (wp.RouteIndex == 3 or wp.RouteIndex == 4) or (dist >= Job.Config.MinDistance)
 
         if isBestRoute then
             if Log then
@@ -1572,20 +1594,14 @@ local function runFarmLoop()
 
         -- LANGKAH 3 & 4: Teleport ke Spawner Truk
         Job.State.Status = "GETTING_TRUCK"
+        local spawnerFolder = Workspace:FindFirstChild("Etc")
+            and Workspace.Etc:FindFirstChild("Job")
+            and Workspace.Etc.Job:FindFirstChild("Truck")
+            and Workspace.Etc.Job.Truck:FindFirstChild("Spawner")
+        local spawnerPrompt = spawnerFolder and spawnerFolder:FindFirstChildWhichIsA("ProximityPrompt", true)
 
-        local spawnerPrompt = nil
-        local okSpawner, foundSpawner = waitFor(function()
-            local sFolder = Workspace:FindFirstChild("Etc")
-                and Workspace.Etc:FindFirstChild("Job")
-                and Workspace.Etc.Job:FindFirstChild("Truck")
-                and Workspace.Etc.Job.Truck:FindFirstChild("Spawner")
-            return sFolder and sFolder:FindFirstChildWhichIsA("ProximityPrompt", true)
-        end, 6.0, 0.1)
-
-        if okSpawner and foundSpawner and foundSpawner.Parent then
-            spawnerPrompt = foundSpawner
-        else
-            if Log then Log.Warn("Spawner folder/prompt belum selesai stream. Mencoba lagi...") end
+        if not spawnerPrompt or not spawnerPrompt.Parent then
+            if Log then Log.Warn("Spawner folder/prompt belum selesai stream. Menunggu...") end
             sleep(0.5)
             continue
         end
@@ -1825,7 +1841,7 @@ return Job
 end)()
 
 -- ==============================================================================
--- 7. UI: WINDUI v1.6.66 (BY FOOTAGESUS)
+-- [UI] WINDUI v1.6.66
 -- ==============================================================================
 local _version = "1.6.66"
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. _version .. "/main.lua"))()
@@ -1846,7 +1862,6 @@ local Window = WindUI:CreateWindow({
     }
 })
 
--- TAB 1: AUTO FARM
 local FarmTab = Window:Tab({
     Title = "Auto Farm",
     Icon = "play",
@@ -1854,7 +1869,7 @@ local FarmTab = Window:Tab({
 
 FarmTab:Toggle({
     Title = "Enable Auto Farm Truck",
-    Desc = "Mulai siklus otonom supir truk CDID Jawa Timur",
+    Desc = "Jalankan engine Job.lua bawaan OE Hub CDID",
     Default = false,
     Callback = function(value)
         if value then
@@ -1879,7 +1894,7 @@ FarmTab:Toggle({
 
 FarmTab:Toggle({
     Title = "Lepas Trailer (Anti-Glitch)",
-    Desc = "Lepas trailer truk otomatis untuk mencegah glitch fisika saat teleportasi",
+    Desc = "Lepas trailer truk otomatis saat spawn",
     Default = Job.Config.StripTrailer,
     Callback = function(value)
         Job.Config.StripTrailer = value
@@ -1892,7 +1907,6 @@ local StatsParagraph = FarmTab:Paragraph({
     Image = "activity",
 })
 
--- TAB 2: SETTINGS & UTILITY
 local SettingsTab = Window:Tab({
     Title = "Settings",
     Icon = "settings",
@@ -1900,7 +1914,7 @@ local SettingsTab = Window:Tab({
 
 SettingsTab:Toggle({
     Title = "Anti-Lag (Disable 3D Render)",
-    Desc = "Matikan render dunia 3D untuk menghemat beban CPU & GPU saat AFK",
+    Desc = "Matikan render 3D untuk menghemat beban CPU & GPU saat AFK",
     Default = false,
     Callback = function(value)
         pcall(function()
@@ -1927,9 +1941,14 @@ SettingsTab:Button({
     Title = "Despawn Mobil / Reset Job",
     Desc = "Reset role pengemudi truk dan bersihkan mobil",
     Callback = function()
-        fireJobRemote("Unemployee")
-        task.wait(0.1)
-        fireJobRemote("Truck")
+        local rem = ReplicatedStorage:FindFirstChild("NetworkContainer")
+            and ReplicatedStorage.NetworkContainer:FindFirstChild("RemoteEvents")
+            and ReplicatedStorage.NetworkContainer.RemoteEvents:FindFirstChild("Job")
+        if rem then
+            rem:FireServer("Unemployee")
+            task.wait(0.1)
+            rem:FireServer("Truck")
+        end
         WindUI:Notify({
             Title = "OE Hub",
             Content = "Job Truck & Kendaraan berhasil di-reset.",
@@ -1939,7 +1958,7 @@ SettingsTab:Button({
     end,
 })
 
--- Background Heartbeat Sinkronisasi Data Job.State ke WindUI Paragraph
+-- Sinkronisasi Live Telemetry ke WindUI
 task.spawn(function()
     while true do
         if Job and Job.State then
