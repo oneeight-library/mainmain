@@ -1,6 +1,6 @@
 --[[
 ================================================================================
-    ONE EIGHT HUB (IN-GAME EDITION) - CDID TRUCK DRIVER
+    ONE EIGHT HUB (IN-GAME EDITION) - CDID TRUCK DRIVER & PRIVATE SERVER
     100% VERBATIM SOURCE FROM BACKEND/LUA-STORAGE:
     - games/cdid/shared/network.lua
     - games/cdid/shared/prompt.lua
@@ -8,6 +8,10 @@
     - games/cdid/shared/vehicle.lua
     - games/cdid/plugins/truck/waypoint.lua
     - games/cdid/plugins/truck/job.lua
+    - games/cdid/plugins/privateserver/environment.lua
+    - games/cdid/plugins/privateserver/security.lua
+    - games/cdid/plugins/privateserver/moderation.lua
+    - games/cdid/plugins/privateserver/init.lua
     UI: WindUI v1.6.66 (Footagesus)
 ================================================================================
 --]]
@@ -92,9 +96,11 @@ Log.Success = function(...) end
 Log.Error = function(...) end
 
 local Notify = {
-    Success = function(...) end,
-    Warn = function(...) end,
-    Error = function(...) end
+    Success = function(t, m) pcall(function() if _G.OE_WindUI then _G.OE_WindUI:Notify({ Title = tostring(t or "OE Hub"), Content = tostring(m or ""), Icon = "check", Duration = 3 }) end end) end,
+    Info = function(t, m) pcall(function() if _G.OE_WindUI then _G.OE_WindUI:Notify({ Title = tostring(t or "OE Hub"), Content = tostring(m or ""), Icon = "info", Duration = 3 }) end end) end,
+    Warning = function(t, m) pcall(function() if _G.OE_WindUI then _G.OE_WindUI:Notify({ Title = tostring(t or "OE Hub"), Content = tostring(m or ""), Icon = "alert-triangle", Duration = 3 }) end end) end,
+    Warn = function(t, m) pcall(function() if _G.OE_WindUI then _G.OE_WindUI:Notify({ Title = tostring(t or "OE Hub"), Content = tostring(m or ""), Icon = "alert-triangle", Duration = 3 }) end end) end,
+    Error = function(t, m) pcall(function() if _G.OE_WindUI then _G.OE_WindUI:Notify({ Title = tostring(t or "OE Hub"), Content = tostring(m or ""), Icon = "x-circle", Duration = 3 }) end end) end,
 }
 
 local Dispatcher = {
@@ -127,7 +133,7 @@ local Dispatcher = {
 _G.OE_Dispatcher = Dispatcher
 
 -- ==============================================================================
--- [1/6] VERBATIM: games/cdid/shared/network.lua
+-- [1/10] VERBATIM: games/cdid/shared/network.lua
 -- ==============================================================================
 _Modules["network"] = (function()
 --[[
@@ -233,7 +239,7 @@ return CDID_NetworkHelper
 end)()
 
 -- ==============================================================================
--- [2/6] VERBATIM: games/cdid/shared/prompt.lua
+-- [2/10] VERBATIM: games/cdid/shared/prompt.lua
 -- ==============================================================================
 _Modules["prompt"] = (function()
 --[[
@@ -384,7 +390,7 @@ return PromptHelper
 end)()
 
 -- ==============================================================================
--- [3/6] VERBATIM: games/cdid/shared/replica.lua
+-- [3/10] VERBATIM: games/cdid/shared/replica.lua
 -- ==============================================================================
 _Modules["replica"] = (function()
 --[[
@@ -554,7 +560,7 @@ return ReplicaBridge
 end)()
 
 -- ==============================================================================
--- [4/6] VERBATIM: games/cdid/shared/vehicle.lua
+-- [4/10] VERBATIM: games/cdid/shared/vehicle.lua
 -- ==============================================================================
 _Modules["vehicle"] = (function()
 --[[
@@ -829,7 +835,7 @@ return Vehicle
 end)()
 
 -- ==============================================================================
--- [5/6] VERBATIM: games/cdid/plugins/truck/waypoint.lua
+-- [5/10] VERBATIM: games/cdid/plugins/truck/waypoint.lua
 -- ==============================================================================
 _Modules["waypoint"] = (function()
 --[[
@@ -970,7 +976,7 @@ return Waypoint
 end)()
 
 -- ==============================================================================
--- [6/6] VERBATIM: games/cdid/plugins/truck/job.lua (100% PERSIS TANPA UBAH 1 HURUF)
+-- [6/10] VERBATIM: games/cdid/plugins/truck/job.lua
 -- ==============================================================================
 local Job = (function()
 --[[
@@ -1861,17 +1867,702 @@ return Job
 end)()
 
 -- ==============================================================================
+-- [7/10] VERBATIM: games/cdid/plugins/privateserver/environment.lua
+-- ==============================================================================
+_Modules["environment"] = (function()
+--[[
+================================================================================
+    OE HUB v2 - CDID PRIVATE SERVER: ENVIRONMENT CONTROLS
+    File: games/cdid/plugins/privateserver/environment.lua
+================================================================================
+]]
+
+local Environment = {}
+local Lighting = game:GetService("Lighting")
+
+local function getDispatcher() return _G.OE_Dispatcher end
+
+local function getLogger()
+    local d = getDispatcher()
+    if d and d.Logger then return d.Logger.Scope("PS:Environment") end
+    return {
+        Success = function(m, r) print("[OE:SUCCESS] [PS:Env     ] " .. tostring(m)) end,
+        Info    = function(m, r) print("[OE:INFO   ] [PS:Env     ] " .. tostring(m)) end,
+        Warn    = function(m, r) warn("[OE:WARN   ] [PS:Env     ] " .. tostring(m)) end,
+        Error   = function(m, r) warn("[OE:ERROR  ] [PS:Env     ] " .. tostring(m)) end,
+    }
+end
+
+local function getSharedNetwork()
+    local d = getDispatcher()
+    if d and d.LoadSubmodule then
+        return d.LoadSubmodule("games/cdid/shared/network.lua")
+    end
+    return nil
+end
+
+-- 1. Mengubah Jam Server (0 s/d 24)
+function Environment.SetTime(clockTime)
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    local timeNum = tonumber(clockTime) or 12
+    timeNum = math.clamp(timeNum, 0, 24)
+
+    local ok, err = Network.Fire("Private Server", "time", { tostring(timeNum) })
+    if ok then
+        Log.Success("Jam Server Diubah", string.format("%02d:00", math.floor(timeNum)))
+        if Notify then Notify.Success("Private Server", string.format("Jam server diubah ke %02d:00", math.floor(timeNum))) end
+        return true, string.format("Jam server diubah ke %02d:00", math.floor(timeNum))
+    end
+
+    Log.Error("Gagal Mengubah Jam", err)
+    if Notify then Notify.Error("Private Server", "Gagal mengubah jam: " .. tostring(err)) end
+    return false, "Gagal mengubah jam: " .. tostring(err)
+end
+
+-- 2. Kunci / Hentikan Perputaran Waktu (Freeze Time)
+function Environment.SetFreezeTime(enable)
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    local action = (enable == true) and "freezetime" or "unfreezetime"
+    local ok, err = Network.Fire("Private Server", action, {})
+    if ok then
+        local status = enable and "Diaktifkan (Waktu Berhenti)" or "Dinonaktifkan"
+        Log.Success("Freeze Time", status)
+        if Notify then Notify.Info("Private Server", "Freeze Time " .. status) end
+        return true, "Freeze Time " .. status
+    end
+
+    Log.Error("Gagal Toggle Freeze Time", err)
+    return false, "Gagal toggle freeze time: " .. tostring(err)
+end
+
+-- 3. Toggle Cuaca Hujan (Rain)
+function Environment.ToggleRain()
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    local ok, err = Network.Fire("Private Server", "rain", {})
+    if ok then
+        Log.Success("Cuaca Hujan Di-Toggle", "Rain")
+        if Notify then Notify.Info("Private Server", "Status cuaca hujan berhasil diubah.") end
+        return true, "Status cuaca hujan di-toggle!"
+    end
+
+    Log.Error("Gagal Toggle Hujan", err)
+    return false, "Gagal toggle hujan: " .. tostring(err)
+end
+
+-- 4. Mengatur Kepadatan Kabut (Fog Density 0.0 s/d 1.0)
+function Environment.SetFog(density)
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    local fogVal = tonumber(density) or 0.2
+    fogVal = math.clamp(fogVal, 0, 1)
+
+    local ok, err = Network.Fire("Private Server", "fog", { tostring(fogVal) })
+    if ok then
+        Log.Success("Kabut Diatur", string.format("%.2f", fogVal))
+        if Notify then Notify.Info("Private Server", string.format("Kepadatan kabut diubah ke %.2f", fogVal)) end
+        return true, string.format("Kepadatan kabut diubah ke %.2f", fogVal)
+    end
+
+    Log.Error("Gagal Mengatur Kabut", err)
+    return false, "Gagal mengubah kabut: " .. tostring(err)
+end
+
+function Environment.GetStatus()
+    return {
+        ClockTime = Lighting.ClockTime,
+        FogDensity = Lighting.Atmosphere and Lighting.Atmosphere.Density or 0,
+        TimeActive = Lighting:FindFirstChild("TimeActive") and Lighting.TimeActive.Value or true
+    }
+end
+
+return Environment
+
+end)()
+
+-- ==============================================================================
+-- [8/10] VERBATIM: games/cdid/plugins/privateserver/security.lua
+-- ==============================================================================
+_Modules["security"] = (function()
+--[[
+================================================================================
+    OE HUB v2 - CDID PRIVATE SERVER: SECURITY CONTROLS
+    File: games/cdid/plugins/privateserver/security.lua
+================================================================================
+]]
+
+local Security = {}
+
+local function getDispatcher() return _G.OE_Dispatcher end
+
+local function getLogger()
+    local d = getDispatcher()
+    if d and d.Logger then return d.Logger.Scope("PS:Security") end
+    return {
+        Success = function(m, r) print("[OE:SUCCESS] [PS:Sec     ] " .. tostring(m)) end,
+        Info    = function(m, r) print("[OE:INFO   ] [PS:Sec     ] " .. tostring(m)) end,
+        Warn    = function(m, r) warn("[OE:WARN   ] [PS:Sec     ] " .. tostring(m)) end,
+        Error   = function(m, r) warn("[OE:ERROR  ] [PS:Sec     ] " .. tostring(m)) end,
+    }
+end
+
+local function getSharedNetwork()
+    local d = getDispatcher()
+    if d and d.LoadSubmodule then
+        return d.LoadSubmodule("games/cdid/shared/network.lua")
+    end
+    return nil
+end
+
+-- 1. Kunci / Buka Akses Server (Server Lock)
+function Security.SetServerLock(lock)
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    local action = (lock == true) and "serverlock" or "serverunlock"
+    local ok, err = Network.Fire("Private Server", action, {})
+    if ok then
+        local msg = "Server " .. (lock and "DIKUNCI (Pemain baru tidak bisa join)" or "DIBUKA kembali")
+        Log.Success("Server Lock", lock and "LOCKED" or "UNLOCKED")
+        if Notify then Notify.Warning("Private Server", msg) end
+        return true, msg
+    end
+
+    Log.Error("Gagal Mengubah Server Lock", err)
+    return false, "Gagal mengubah server lock: " .. tostring(err)
+end
+
+-- 2. Kirim Pesan Pengumuman Banner ke Seluruh Pemain di Server
+function Security.SendMessage(text)
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    if not text or text == "" then return false, "Pesan tidak boleh kosong!" end
+
+    local ok, err = Network.Fire("Private Server", "message", { tostring(text) })
+    if ok then
+        Log.Success("Pengumuman Terkirim", text)
+        if Notify then Notify.Success("Pengumuman", "Pengumuman berhasil disiarkan!") end
+        return true, "Pengumuman berhasil dikirim ke layar seluruh pemain!"
+    end
+
+    Log.Error("Gagal Siaran Pengumuman", err)
+    return false, "Gagal mengirim pengumuman: " .. tostring(err)
+end
+
+-- 3. Matikan / Tutup Server (Shutdown)
+function Security.Shutdown()
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    local ok, err = Network.Fire("Private Server", "shutdown")
+    if ok then
+        Log.Warn("Server Shutdown Initiated", "Shutdown")
+        if Notify then Notify.Warning("Private Server", "Perintah shutdown server dikirim!") end
+        return true, "Perintah shutdown server berhasil dikirim!"
+    end
+
+    Log.Error("Gagal Shutdown Server", err)
+    return false, "Gagal mematikan server: " .. tostring(err)
+end
+
+return Security
+
+end)()
+
+-- ==============================================================================
+-- [9/10] VERBATIM: games/cdid/plugins/privateserver/moderation.lua
+-- ==============================================================================
+_Modules["moderation"] = (function()
+--[[
+================================================================================
+    OE HUB v2 - CDID PRIVATE SERVER: PLAYER MODERATION
+    File: games/cdid/plugins/privateserver/moderation.lua
+================================================================================
+]]
+
+local Moderation = {}
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local function getDispatcher() return _G.OE_Dispatcher end
+
+local function getLogger()
+    local d = getDispatcher()
+    if d and d.Logger then return d.Logger.Scope("PS:Moderation") end
+    return {
+        Success = function(m, r) print("[OE:SUCCESS] [PS:Mod     ] " .. tostring(m)) end,
+        Info    = function(m, r) print("[OE:INFO   ] [PS:Mod     ] " .. tostring(m)) end,
+        Warn    = function(m, r) warn("[OE:WARN   ] [PS:Mod     ] " .. tostring(m)) end,
+        Error   = function(m, r) warn("[OE:ERROR  ] [PS:Mod     ] " .. tostring(m)) end,
+    }
+end
+
+local function getSharedNetwork()
+    local d = getDispatcher()
+    if d and d.LoadSubmodule then
+        return d.LoadSubmodule("games/cdid/shared/network.lua")
+    end
+    return nil
+end
+
+function Moderation.GetPlayersList()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        table.insert(list, {
+            name = p.Name,
+            displayName = p.DisplayName,
+            userId = p.UserId,
+            isSelf = (p == LocalPlayer)
+        })
+    end
+    return list
+end
+
+-- 2. Kick Pemain dari Server
+function Moderation.Kick(targetPlayerName)
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    if not targetPlayerName or targetPlayerName == "" then return false, "Target tidak valid!" end
+
+    local ok, err = Network.Fire("Private Server", "kick", { tostring(targetPlayerName) })
+    if ok then
+        Log.Success("Player Di-Kick", targetPlayerName)
+        if Notify then Notify.Warning("Moderasi", string.format("Pemain @%s berhasil di-kick!", targetPlayerName)) end
+        return true, string.format("Pemain @%s berhasil di-kick dari server!", targetPlayerName)
+    end
+
+    Log.Error("Gagal Kick Player", err)
+    return false, "Gagal kick pemain: " .. tostring(err)
+end
+
+-- 3. Ban Pemain dari Server
+function Moderation.Ban(targetPlayerName)
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    if not targetPlayerName or targetPlayerName == "" then return false, "Target tidak valid!" end
+
+    local ok, err = Network.Fire("Private Server", "ban", { tostring(targetPlayerName) })
+    if ok then
+        Log.Success("Player Di-Ban", targetPlayerName)
+        if Notify then Notify.Error("Moderasi", string.format("Pemain @%s berhasil di-ban!", targetPlayerName)) end
+        return true, string.format("Pemain @%s berhasil di-ban dari server!", targetPlayerName)
+    end
+
+    Log.Error("Gagal Ban Player", err)
+    return false, "Gagal ban pemain: " .. tostring(err)
+end
+
+-- 4. Jadikan / Cabut Moderator Server
+function Moderation.ToggleModerator(targetPlayerName)
+    local Log = getLogger()
+    local d = getDispatcher()
+    local Notify = d and d.Notify
+
+    local Network = getSharedNetwork()
+    if not Network then return false, "Shared Network belum siap!" end
+
+    if not targetPlayerName or targetPlayerName == "" then return false, "Target tidak valid!" end
+
+    local ok, err = Network.Fire("Private Server", "moderator", { tostring(targetPlayerName) })
+    if ok then
+        Log.Success("Moderator Diubah", targetPlayerName)
+        if Notify then Notify.Info("Moderasi", string.format("Hak moderator @%s diubah!", targetPlayerName)) end
+        return true, string.format("Hak moderator untuk @%s berhasil di-toggle!", targetPlayerName)
+    end
+
+    Log.Error("Gagal Ubah Hak Moderator", err)
+    return false, "Gagal mengubah hak moderator: " .. tostring(err)
+end
+
+return Moderation
+
+end)()
+
+-- ==============================================================================
+-- [10/10] VERBATIM: games/cdid/plugins/privateserver/init.lua
+-- ==============================================================================
+local PrivateServer = (function()
+--[[
+================================================================================
+    OE HUB v2 - CDID PRIVATE SERVER PLUGIN
+    File: games/cdid/plugins/privateserver/init.lua
+================================================================================
+    Plugin resmi kontrol cuaca, waktu, dan keamanan Private Server CDID:
+    - Day & Night (Icon Buttons tanpa teks)
+    - Freeze Time (Switch)
+    - Rain (Switch)
+    - Clear Fog (Switch)
+    - Server Lock (Switch)
+    - Shutdown Server (Icon Button tanpa teks)
+    - Status Server Extras SSOT Provider
+================================================================================
+]]
+
+local Plugin = {}
+
+local Dispatcher = _G.OE_Dispatcher
+local Util = (Dispatcher and Dispatcher.Util) or _G.OE_Util
+local rawLogger = Util and (Util.Logger or (Util.Get and Util.Get("Logger")))
+local Log = nil
+if rawLogger and rawLogger.Scope then
+    Log = rawLogger.Scope("PrivateServer:Gateway")
+    Log.SetEnabled(false) -- Default: false (Hening di F9 sesuai preferensi user)
+else
+    Log = {
+        Enabled = false,
+        SetEnabled = function(self, s) self.Enabled = (s == true) end,
+        Info = function(...) end,
+        Warn = function(...) end,
+        Success = function(...) end,
+        Error = function(...) end
+    }
+end
+
+Plugin.Capabilities = {
+    Id = "privateserver",
+    Order = 4,
+    Name = "Private Server",
+    Type = "utility",
+    Icon = "server",
+    Description = "Kontrol penuh cuaca, waktu, dan keamanan Private Server.",
+    HasLoop = false,
+
+    Actions = {
+        {
+            Id = "ps_set_day",
+            Label = "Day",
+            Type = "shot",
+            BtnText = "",
+            BtnIcon = "sun",
+            Icon = "sun"
+        },
+        {
+            Id = "ps_set_night",
+            Label = "Night",
+            Type = "shot",
+            BtnText = "",
+            BtnIcon = "moon",
+            Icon = "moon"
+        },
+        {
+            Id = "ps_freeze_time",
+            Label = "Freeze Time",
+            Type = "switch",
+            Icon = "clock",
+            Default = false
+        },
+        {
+            Id = "ps_toggle_rain",
+            Label = "Rain",
+            Type = "switch",
+            Icon = "cloud-rain",
+            Default = false
+        },
+        {
+            Id = "ps_clear_fog",
+            Label = "Clear Fog",
+            Type = "switch",
+            Icon = "wind",
+            Default = false
+        },
+        {
+            Id = "ps_server_lock",
+            Label = "Server Lock",
+            Type = "switch",
+            Icon = "lock",
+            Default = false
+        },
+        {
+            Id = "ps_shutdown",
+            Label = "Shutdown Server",
+            Type = "shot",
+            BtnText = "",
+            BtnIcon = "power",
+            Icon = "power"
+        }
+    }
+}
+
+-- Dispatcher & Core Util Gateway
+local Dispatcher = _G.OE_Dispatcher
+local Util = (Dispatcher and Dispatcher.Util) or _G.OE_Util
+
+-- Submodul Lazy Loaders
+local EnvModule = nil
+local SecModule = nil
+local ModModule = nil
+
+local function getEnv()
+    if not EnvModule then
+        local D = _G.OE_Dispatcher or Dispatcher
+        if D and D.LoadSubmodule then
+            EnvModule = D.LoadSubmodule("games/cdid/plugins/privateserver/environment.lua")
+        end
+    end
+    return EnvModule
+end
+
+local function getSec()
+    if not SecModule then
+        local D = _G.OE_Dispatcher or Dispatcher
+        if D and D.LoadSubmodule then
+            SecModule = D.LoadSubmodule("games/cdid/plugins/privateserver/security.lua")
+        end
+    end
+    return SecModule
+end
+
+-- Validasi apakah sedang berada di Private Server
+local _cachedIsPs = nil
+local function isPrivateServer()
+    if _cachedIsPs ~= nil then return _cachedIsPs end
+
+    local D = _G.OE_Dispatcher or Dispatcher
+    if D and D.GetGameBaselineValue then
+        local sType = D.GetGameBaselineValue("Server Type")
+        if sType == "Private Server" then
+            _cachedIsPs = true
+            return true
+        end
+    end
+
+    if game.PrivateServerId ~= "" then
+        _cachedIsPs = true
+        return true
+    end
+
+    local LocalPlayer = game:GetService("Players").LocalPlayer
+    local pg = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
+    local topbar = pg and (pg:FindFirstChild("TopbarStandard") or pg:FindFirstChild("Topbar"))
+    if topbar then
+        for _, d in ipairs(topbar:GetDescendants()) do
+            if (d:IsA("ImageLabel") or d:IsA("ImageButton")) and tostring(d.Image):find("15674410240") then
+                _cachedIsPs = true
+                return true
+            end
+        end
+        _cachedIsPs = false
+        return false
+    end
+
+    return false
+end
+
+-- ==============================================================================
+-- HANDLER SWITCH & SETTINGS (TUNE)
+-- ==============================================================================
+local _freezeState = false
+local _serverLockState = false
+local _fogState = false
+
+function Plugin.Tune(settings)
+    settings = settings or {}
+    if not isPrivateServer() then
+        if Util and Util.Notify then
+            Util.Notify.Error("Private Server", "Perintah ditolak: Fitur ini hanya berlaku di Private Server!")
+        end
+        return false, "Hanya berlaku di Private Server"
+    end
+
+    local Env = getEnv()
+    local Sec = getSec()
+
+    -- 1. Freeze Time Switch
+    if settings.ps_freeze_time ~= nil and Env then
+        _freezeState = (settings.ps_freeze_time == true)
+        local ok, msg = Env.SetFreezeTime(_freezeState)
+        if Util and Util.Notify then
+            if ok then Util.Notify.Info("Private Server", _freezeState and "Freeze Time Aktif" or "Freeze Time Nonaktif") else Util.Notify.Error("Private Server", msg) end
+        end
+        pcall(Plugin.ReportState)
+    end
+
+    -- 2. Rain Switch
+    if settings.ps_toggle_rain ~= nil and Env then
+        local ok, msg = Env.ToggleRain()
+        if Util and Util.Notify then
+            if ok then Util.Notify.Info("Private Server", "Status hujan di-toggle!") else Util.Notify.Error("Private Server", msg) end
+        end
+        pcall(Plugin.ReportState)
+    end
+
+    -- 3. Clear Fog Switch
+    if settings.ps_clear_fog ~= nil and Env then
+        _fogState = (settings.ps_clear_fog == true)
+        local density = _fogState and 0 or 0.2
+        local ok, msg = Env.SetFog(density)
+        if Util and Util.Notify then
+            if ok then Util.Notify.Success("Private Server", _fogState and "Clear Fog Aktif (Kabut Bersih)" or "Kabut Standar") else Util.Notify.Error("Private Server", msg) end
+        end
+        pcall(Plugin.ReportState)
+    end
+
+    -- 4. Server Lock Switch (Satukan Lock dan Unlock)
+    if settings.ps_server_lock ~= nil and Sec then
+        _serverLockState = (settings.ps_server_lock == true)
+        local ok, msg = Sec.SetServerLock(_serverLockState)
+        if Util and Util.Notify then
+            if ok then
+                if _serverLockState then Util.Notify.Warning("Private Server", "Server DIKUNCI (Pemain baru tidak bisa join)!") else Util.Notify.Success("Private Server", "Kunci server DIBUKA kembali.") end
+            else
+                Util.Notify.Error("Private Server", msg)
+            end
+        end
+        pcall(Plugin.ReportState)
+    end
+end
+
+-- ==============================================================================
+-- ACTION HANDLER (SHOT BUTTONS & FALLBACK)
+-- ==============================================================================
+function Plugin.Shot(actionId, params)
+    local D = _G.OE_Dispatcher or Dispatcher
+
+    if not isPrivateServer() then
+        if Util and Util.Notify then
+            Util.Notify.Error("Private Server", "Perintah ditolak: Fitur ini hanya berlaku di Private Server!")
+        end
+        return false, "Hanya berlaku di Private Server"
+    end
+
+    params = params or {}
+    local Env = getEnv()
+    local Sec = getSec()
+
+    -- 1. Day Action (12:00)
+    if actionId == "ps_set_day" and Env then
+        local ok, msg = Env.SetTime(12)
+        if Util and Util.Notify then
+            if ok then Util.Notify.Success("Private Server", "Jam server diubah ke 12:00 (Day)") else Util.Notify.Error("Private Server", msg) end
+        end
+        pcall(Plugin.ReportState)
+        return ok, msg
+
+    -- 2. Night Action (00:00)
+    elseif actionId == "ps_set_night" and Env then
+        local ok, msg = Env.SetTime(0)
+        if Util and Util.Notify then
+            if ok then Util.Notify.Success("Private Server", "Jam server diubah ke 00:00 (Night)") else Util.Notify.Error("Private Server", msg) end
+        end
+        pcall(Plugin.ReportState)
+        return ok, msg
+
+    -- 3. Shutdown Server Action
+    elseif actionId == "ps_shutdown" and Sec then
+        local ok, msg = Sec.Shutdown()
+        if Util and Util.Notify then
+            if ok then Util.Notify.Warning("Private Server", "Perintah shutdown server dikirim!") else Util.Notify.Error("Private Server", msg) end
+        end
+        return ok, msg
+
+    -- Fallback triggers
+    elseif actionId == "ps_freeze_time" then
+        return Plugin.Tune({ ps_freeze_time = not _freezeState })
+
+    elseif actionId == "ps_toggle_rain" then
+        return Plugin.Tune({ ps_toggle_rain = true })
+
+    elseif actionId == "ps_clear_fog" then
+        return Plugin.Tune({ ps_clear_fog = not _fogState })
+
+    elseif actionId == "ps_server_lock" then
+        return Plugin.Tune({ ps_server_lock = not _serverLockState })
+    end
+
+    warn("[CDID PrivateServer] Aksi tidak dikenal: " .. tostring(actionId))
+    return false, "Action unknown: " .. tostring(actionId)
+end
+
+Plugin.OnAction = Plugin.Shot
+
+-- ==============================================================================
+-- EXTRAS & TELEMETRY PROVIDER (DISPLAY DI CARD)
+-- ==============================================================================
+function Plugin.GetExtras()
+    local inPS = isPrivateServer()
+    return {
+        ["Status Server"] = inPS and "Private Server" or "Public Server"
+    }
+end
+
+function Plugin.ReportState()
+    local D = _G.OE_Dispatcher or Dispatcher
+    if D and D.ReportJobState then
+        D.ReportJobState("privateserver", {
+            extras = Plugin.GetExtras()
+        })
+    end
+end
+
+-- Otomatis laporkan state saat plugin pertama kali dimuat
+task.defer(function()
+    task.wait(0.5)
+    pcall(Plugin.ReportState)
+end)
+
+return Plugin
+
+end)()
+_Modules["privateserver"] = PrivateServer
+
+-- ==============================================================================
 -- [UI] WINDUI v1.6.66
 -- ==============================================================================
 local _version = "1.6.66"
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. _version .. "/main.lua"))()
+_G.OE_WindUI = WindUI
 
 local Window = WindUI:CreateWindow({
     Title = "One Eight Hub - CDID In-Game",
     Icon = "truck",
     Author = "OE Hub",
     Folder = "OEHub_WindUI",
-    Size = UDim2.fromOffset(580, 420),
+    Size = UDim2.fromOffset(580, 440),
     Theme = "Dark",
     Transparent = true,
     OpenButton = {
@@ -1882,6 +2573,9 @@ local Window = WindUI:CreateWindow({
     }
 })
 
+-- ==============================================================================
+-- TAB 1: AUTO FARM TRUCK
+-- ==============================================================================
 local FarmTab = Window:Tab({
     Title = "Auto Farm",
     Icon = "play",
@@ -1927,6 +2621,177 @@ local StatsParagraph = FarmTab:Paragraph({
     Image = "activity",
 })
 
+-- ==============================================================================
+-- TAB 2: PRIVATE SERVER CONTROLS
+-- ==============================================================================
+local PSTab = Window:Tab({
+    Title = "Private Server",
+    Icon = "server",
+})
+
+local PSEnv = _Modules["environment"]
+local PSSec = _Modules["security"]
+
+PSTab:Section({ Title = "Kontrol Waktu & Cuaca" })
+
+PSTab:Button({
+    Title = "Set Siang (Day 12:00)",
+    Desc = "Ubah jam server ke jam 12:00 siang",
+    Icon = "sun",
+    Callback = function()
+        if PSEnv then
+            local ok, msg = PSEnv.SetTime(12)
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = ok and "Jam diubah ke 12:00 siang" or ("Gagal: " .. tostring(msg)),
+                Icon = "sun",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+PSTab:Button({
+    Title = "Set Malam (Night 00:00)",
+    Desc = "Ubah jam server ke jam 00:00 malam",
+    Icon = "moon",
+    Callback = function()
+        if PSEnv then
+            local ok, msg = PSEnv.SetTime(0)
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = ok and "Jam diubah ke 00:00 malam" or ("Gagal: " .. tostring(msg)),
+                Icon = "moon",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+PSTab:Toggle({
+    Title = "Freeze Time (Hentikan Waktu)",
+    Desc = "Kunci perputaran waktu di server agar jam tidak berubah",
+    Default = false,
+    Callback = function(value)
+        if PSEnv then
+            local ok, msg = PSEnv.SetFreezeTime(value)
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = ok and (value and "Freeze Time Aktif" or "Freeze Time Nonaktif") or ("Gagal: " .. tostring(msg)),
+                Icon = "clock",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+PSTab:Toggle({
+    Title = "Cuaca Hujan (Rain)",
+    Desc = "Toggle aktif/nonaktif efek hujan di Private Server",
+    Default = false,
+    Callback = function(value)
+        if PSEnv then
+            local ok, msg = PSEnv.ToggleRain()
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = ok and "Cuaca hujan di-toggle!" or ("Gagal: " .. tostring(msg)),
+                Icon = "cloud-rain",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+PSTab:Toggle({
+    Title = "Clear Fog (Hilangkan Kabut)",
+    Desc = "Bersihkan kabut agar pandangan jauh lebih jernih",
+    Default = false,
+    Callback = function(value)
+        if PSEnv then
+            local ok, msg = PSEnv.SetFog(value and 0 or 0.2)
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = ok and (value and "Clear Fog Aktif (Kabut Bersih)" or "Kabut Standar") or ("Gagal: " .. tostring(msg)),
+                Icon = "wind",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+PSTab:Section({ Title = "Keamanan & Server" })
+
+PSTab:Toggle({
+    Title = "Server Lock (Kunci Server)",
+    Desc = "Kunci server agar pemain baru tidak bisa masuk",
+    Default = false,
+    Callback = function(value)
+        if PSSec then
+            local ok, msg = PSSec.SetServerLock(value)
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = ok and (value and "Server DIKUNCI!" or "Server DIBUKA!") or ("Gagal: " .. tostring(msg)),
+                Icon = "lock",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+local broadcastMsg = ""
+PSTab:Input({
+    Title = "Pesan Siaran (Broadcast)",
+    Desc = "Ketik teks pengumuman yang akan dikirim ke seluruh pemain",
+    Placeholder = "Tulis pengumuman di sini...",
+    Callback = function(text)
+        broadcastMsg = text
+    end,
+})
+
+PSTab:Button({
+    Title = "Kirim Pengumuman",
+    Desc = "Siarkan banner pesan ke layar semua pemain",
+    Icon = "send",
+    Callback = function()
+        if PSSec and broadcastMsg and broadcastMsg ~= "" then
+            local ok, err = PSSec.SendMessage(broadcastMsg)
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = ok and "Pengumuman berhasil disiarkan!" or ("Gagal: " .. tostring(err)),
+                Icon = ok and "check" or "alert-triangle",
+                Duration = 3
+            })
+        else
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = "Pesan pengumuman tidak boleh kosong!",
+                Icon = "alert-circle",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+PSTab:Button({
+    Title = "Shutdown Server",
+    Desc = "Tutup dan matikan instance Private Server saat ini",
+    Icon = "power",
+    Callback = function()
+        if PSSec then
+            local ok, msg = PSSec.Shutdown()
+            WindUI:Notify({
+                Title = "Private Server",
+                Content = ok and "Perintah shutdown dikirim!" or ("Gagal: " .. tostring(msg)),
+                Icon = "power",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+-- ==============================================================================
+-- TAB 3: SETTINGS
+-- ==============================================================================
 local SettingsTab = Window:Tab({
     Title = "Settings",
     Icon = "settings",
