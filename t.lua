@@ -1923,7 +1923,7 @@ FarmTab:Toggle({
 
 local StatsParagraph = FarmTab:Paragraph({
     Title = "Live Telemetri",
-    Desc = "Status: IDLE\nRute Aktif: -\nSisa Waktu: 0s\nTotal Trip: 0\nEstimasi Gaji: Rp 0",
+    Desc = "Status: IDLE\nRuntime: 00:00:00\nAvg/h: Rp 0/h\nRute Aktif: -\nSisa Waktu: 0s\nTotal Trip: 0\nTotal Gaji: Rp 0",
     Image = "activity",
 })
 
@@ -1978,22 +1978,63 @@ SettingsTab:Button({
     end,
 })
 
--- Sinkronisasi Live Telemetry ke WindUI
+-- Helper format rupiah
+local function formatRupiah(num)
+    local n = math.floor(tonumber(num) or 0)
+    local formatted = tostring(n):reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
+    return "Rp " .. formatted
+end
+
+-- Engine Live Telemetri (Session Runtime & Event-Driven Avg/h Persis Backend)
 task.spawn(function()
     while true do
         if Job and Job.State then
+            -- 1. Deteksi Session Runtime: mulai tepat saat supir pertama kali duduk di truk
+            if Job.State.IsFarming then
+                if Job.State.HasReportedFirstSeat and not Job.State.FirstSeatTime then
+                    Job.State.FirstSeatTime = os.clock()
+                end
+            else
+                Job.State.FirstSeatTime = nil
+                Job.State.AvgPerHour = 0
+                Job.State.LastCalculatedGain = nil
+            end
+
+            local runtimeSec = 0
+            local runtimeTxt = "00:00:00 (Menunggu Supir)"
+            if Job.State.IsFarming and Job.State.FirstSeatTime then
+                runtimeSec = math.max(0, math.floor(os.clock() - Job.State.FirstSeatTime))
+                local h = math.floor(runtimeSec / 3600)
+                local m = math.floor((runtimeSec % 3600) / 60)
+                local s = runtimeSec % 60
+                runtimeTxt = string.format("%02d:%02d:%02d", h, m, s)
+            elseif not Job.State.IsFarming then
+                runtimeTxt = "00:00:00"
+            end
+
+            -- 2. Event-Driven Avg Lock (Formula Backend accounts.js):
+            -- Nilai avg/h di-lock saat di jalan raya, hanya dikalkulasi ulang saat ada gain baru
+            local gain = Job.State.TotalEarnings or 0
+            if gain ~= Job.State.LastCalculatedGain and gain > 0 and runtimeSec >= 10 then
+                Job.State.LastCalculatedGain = gain
+                local hours = runtimeSec / 3600
+                Job.State.AvgPerHour = math.floor(gain / hours)
+            elseif gain == 0 then
+                Job.State.AvgPerHour = 0
+            end
+
             local statusTxt = tostring(Job.State.Status or "IDLE")
             local routeTxt = tostring(Job.State.CurrentRoute or "-")
             local timerTxt = string.format("%ds", Job.State.RemainingSeconds or 0)
             local tripTxt = tostring(Job.State.TripCount or 0)
-            local e = tostring(Job.State.TotalEarnings or 0):reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
-            local earningsTxt = "Rp " .. e
+            local earningsTxt = formatRupiah(gain)
+            local avgTxt = formatRupiah(Job.State.AvgPerHour or 0) .. "/h"
 
             pcall(function()
                 if StatsParagraph and StatsParagraph.SetDesc then
                     StatsParagraph:SetDesc(string.format(
-                        "Status: %s\nRute Aktif: %s\nSisa Waktu Kargo: %s\nTotal Trip: %s\nEstimasi Gaji: %s",
-                        statusTxt, routeTxt, timerTxt, tripTxt, earningsTxt
+                        "Status: %s\nRuntime: %s\nAvg/h: %s\nRute Aktif: %s\nSisa Waktu Kargo: %s\nTotal Trip: %s\nTotal Gaji: %s",
+                        statusTxt, runtimeTxt, avgTxt, routeTxt, timerTxt, tripTxt, earningsTxt
                     ))
                 end
             end)
