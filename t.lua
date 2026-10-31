@@ -1832,6 +1832,12 @@ local Window = WindUI:CreateWindow({
     Size = UDim2.fromOffset(580, 420),
     Theme = "Dark",
     Transparent = true,
+    OpenButton = {
+        Title = "OE Hub",
+        Icon = "truck",
+        Enabled = true,
+        Draggable = true,
+    }
 })
 
 -- TAB 1: AUTO FARM
@@ -1862,37 +1868,6 @@ FarmTab:Toggle({
                 Duration = 3
             })
         end
-    end,
-})
-
-FarmTab:Toggle({
-    Title = "Smart Chaining (Sambung Rute)",
-    Desc = "Langsung antar kargo berikutnya jika rute sambungan >= 105k studs tanpa kembali ke Depot",
-    Default = Job.Config.SmartChaining,
-    Callback = function(value)
-        Job.Config.SmartChaining = value
-    end,
-})
-
-FarmTab:Slider({
-    Title = "Wait Duration (Detik)",
-    Desc = "Durasi waktu pengiriman kargo (Anti-Cheat compliant: minimal 50.1s)",
-    Range = {48.0, 65.0},
-    Increment = 0.1,
-    Default = Job.Config.WaitDuration or 50.1,
-    Callback = function(value)
-        Job.Config.WaitDuration = tonumber(value) or 50.1
-    end,
-})
-
-FarmTab:Slider({
-    Title = "Min Distance (Studs)",
-    Desc = "Batas minimal jarak rute reroll di depot",
-    Range = {80000, 120000},
-    Increment = 1000,
-    Default = Job.Config.MinDistance or 105000,
-    Callback = function(value)
-        Job.Config.MinDistance = tonumber(value) or 105000
     end,
 })
 
