@@ -1,8 +1,8 @@
 --[[
 ================================================================================
     ONE EIGHT HUB (IN-GAME EDITION) - CDID TRUCK DRIVER
-    100% IDENTIK DENGAN BACKEND/LUA-STORAGE (JOB.LUA & WAYPOINT.LUA)
-    UI: Maclib (macOS Style Interface)
+    UI: WindUI v1.6.66 (Modern Glassmorphism by Footagesus)
+    Engine: 100% Identik dengan Backend/Lua-Storage (Job.lua & Waypoint.lua)
 ================================================================================
 --]]
 
@@ -41,7 +41,7 @@ local Trove = {
 }
 
 -- ==============================================================================
--- 1. SUBMODULE: CDID_Network (dari games/cdid/shared/network.lua)
+-- 1. SUBMODULE: CDID_Network (games/cdid/shared/network.lua)
 -- ==============================================================================
 local CDID_Network = (function()
 --[[
@@ -147,7 +147,7 @@ return CDID_NetworkHelper
 end)()
 
 -- ==============================================================================
--- 2. SUBMODULE: PromptHelper (dari games/cdid/shared/prompt.lua)
+-- 2. SUBMODULE: PromptHelper (games/cdid/shared/prompt.lua)
 -- ==============================================================================
 local PromptHelper = (function()
 --[[
@@ -298,7 +298,7 @@ return PromptHelper
 end)()
 
 -- ==============================================================================
--- 3. SUBMODULE: ReplicaBridge (dari games/cdid/shared/replica.lua)
+-- 3. SUBMODULE: ReplicaBridge (games/cdid/shared/replica.lua)
 -- ==============================================================================
 local ReplicaBridge = (function()
 --[[
@@ -468,7 +468,7 @@ return ReplicaBridge
 end)()
 
 -- ==============================================================================
--- 4. SUBMODULE: Vehicle (dari games/cdid/shared/vehicle.lua)
+-- 4. SUBMODULE: Vehicle (games/cdid/shared/vehicle.lua)
 -- ==============================================================================
 local Vehicle = (function()
 --[[
@@ -743,7 +743,7 @@ return Vehicle
 end)()
 
 -- ==============================================================================
--- 5. SUBMODULE: Waypoint (dari games/cdid/plugins/truck/waypoint.lua)
+-- 5. SUBMODULE: Waypoint (games/cdid/plugins/truck/waypoint.lua)
 -- ==============================================================================
 local Waypoint = (function()
 --[[
@@ -884,10 +884,9 @@ return Waypoint
 end)()
 
 -- ==============================================================================
--- 6. MAIN ENGINE: Job (100% PERSIS DARI games/cdid/plugins/truck/job.lua)
+-- 6. MAIN ENGINE: Job (100% Persis games/cdid/plugins/truck/job.lua)
 -- ==============================================================================
 local Job = (function()
-    -- Submodule bridge hooks
     local requireShared = function(name)
         if name == "network" then return CDID_Network end
         if name == "prompt" then return PromptHelper end
@@ -1820,188 +1819,172 @@ return Job
 end)()
 
 -- ==============================================================================
--- 7. UI MACLIB INTEGRATION
+-- 7. UI: WINDUI v1.6.66 (BY FOOTAGESUS)
 -- ==============================================================================
-local function loadMaclib()
-    local sources = {
-        "https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt",
-        "https://raw.githubusercontent.com/biggaboy212/Maclib/main/maclib.txt"
-    }
-    for _, url in ipairs(sources) do
-        local ok, code = pcall(function()
-            return game:HttpGet(url, true)
-        end)
-        if ok and type(code) == "string" and #code > 1000 and not code:find("404: Not Found") and not code:find("<html") then
-            local fn = loadstring(code)
-            if fn then
-                local execOk, lib = pcall(fn)
-                if execOk and type(lib) == "table" and lib.Window then
-                    return lib
-                end
-            end
-        end
-    end
-    return nil
-end
+local _version = "1.6.66"
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. _version .. "/main.lua"))()
 
-local MaclibRaw = loadMaclib()
-if not MaclibRaw then
-    warn("[OE-HUB] Gagal mengunduh Maclib dari repository GitHub. Silakan periksa koneksi internet / executor HTTP permissions.")
-    return
-end
-
-local Maclib = MaclibRaw
-local MacLib = MaclibRaw
-
-local Window = Maclib:Window({
+local Window = WindUI:CreateWindow({
     Title = "One Eight Hub - CDID In-Game",
-    Subtitle = "Truck Driver (Official Job.lua Engine)",
-    Size = UDim2.fromOffset(580, 380),
-    DragStyle = 1,
-    DisabledWindowControls = {},
-    ShowUserInfo = true,
-    Keybind = Enum.KeyCode.RightControl,
-    AcrylicBlur = true
+    Icon = "truck",
+    Author = "OE Hub",
+    Folder = "OEHub_WindUI",
+    Size = UDim2.fromOffset(580, 420),
+    Theme = "Dark",
+    Transparent = true,
 })
-
-local TabGroup = Window:TabGroup()
 
 -- TAB 1: AUTO FARM
-local FarmTab = TabGroup:Tab({
-    Name = "Auto Farm",
-    Image = "rbxassetid://10709768647"
+local FarmTab = Window:Tab({
+    Title = "Auto Farm",
+    Icon = "play",
 })
 
-local SectionFarm = FarmTab:Section({
-    Side = "Left"
-})
-
-SectionFarm:Toggle({
-    Name = "Enable Auto Farm Truck",
+FarmTab:Toggle({
+    Title = "Enable Auto Farm Truck",
+    Desc = "Mulai siklus otonom supir truk CDID Jawa Timur",
     Default = false,
     Callback = function(value)
         if value then
             Job.Start()
+            WindUI:Notify({
+                Title = "OE Hub",
+                Content = "Auto Farm Truck Driver Dimulai!",
+                Icon = "play",
+                Duration = 3
+            })
         else
             Job.Stop()
+            WindUI:Notify({
+                Title = "OE Hub",
+                Content = "Auto Farm Truck Driver Dihentikan.",
+                Icon = "square",
+                Duration = 3
+            })
         end
-    end
+    end,
 })
 
-SectionFarm:Toggle({
-    Name = "Smart Chaining (Sambung Rute)",
+FarmTab:Toggle({
+    Title = "Smart Chaining (Sambung Rute)",
+    Desc = "Langsung antar kargo berikutnya jika rute sambungan >= 105k studs tanpa kembali ke Depot",
     Default = Job.Config.SmartChaining,
     Callback = function(value)
         Job.Config.SmartChaining = value
-    end
+    end,
 })
 
-SectionFarm:Slider({
-    Name = "Wait Duration (Detik)",
+FarmTab:Slider({
+    Title = "Wait Duration (Detik)",
+    Desc = "Durasi waktu pengiriman kargo (Anti-Cheat compliant: minimal 50.1s)",
+    Range = {48.0, 65.0},
+    Increment = 0.1,
     Default = Job.Config.WaitDuration or 50.1,
-    Minimum = 48.0,
-    Maximum = 65.0,
-    Precision = 1,
     Callback = function(value)
         Job.Config.WaitDuration = tonumber(value) or 50.1
-    end
+    end,
 })
 
-SectionFarm:Slider({
-    Name = "Min Distance (Studs)",
+FarmTab:Slider({
+    Title = "Min Distance (Studs)",
+    Desc = "Batas minimal jarak rute reroll di depot",
+    Range = {80000, 120000},
+    Increment = 1000,
     Default = Job.Config.MinDistance or 105000,
-    Minimum = 80000,
-    Maximum = 120000,
-    Precision = 0,
     Callback = function(value)
         Job.Config.MinDistance = tonumber(value) or 105000
-    end
+    end,
 })
 
-SectionFarm:Toggle({
-    Name = "Lepas Trailer (Anti-Glitch)",
+FarmTab:Toggle({
+    Title = "Lepas Trailer (Anti-Glitch)",
+    Desc = "Lepas trailer truk otomatis untuk mencegah glitch fisika saat teleportasi",
     Default = Job.Config.StripTrailer,
     Callback = function(value)
         Job.Config.StripTrailer = value
-    end
+    end,
 })
 
--- SECTION MONITORING & STATS (SIDE KANAN)
-local SectionStats = FarmTab:Section({
-    Side = "Right"
+local StatsParagraph = FarmTab:Paragraph({
+    Title = "Live Telemetri",
+    Desc = "Status: IDLE\nRute Aktif: -\nSisa Waktu: 0s\nTotal Trip: 0\nEstimasi Gaji: Rp 0",
+    Image = "activity",
 })
 
-local StatusLabel = SectionStats:Label({ Text = "Status: IDLE" })
-local RouteLabel = SectionStats:Label({ Text = "Rute Aktif: -" })
-local TimerLabel = SectionStats:Label({ Text = "Sisa Waktu: 0s" })
-local TripLabel = SectionStats:Label({ Text = "Total Trip: 0" })
-local EarningsLabel = SectionStats:Label({ Text = "Estimasi Gaji: Rp 0" })
-
-local function updateLabel(lbl, text)
-    pcall(function()
-        if lbl and lbl.UpdateName then
-            lbl:UpdateName(text)
-        elseif lbl and lbl.SetText then
-            lbl:SetText(text)
-        end
-    end)
-end
-
--- Background Monitor Heartbeat (Sinkronkan State Job.lua ke Maclib Label)
-task.spawn(function()
-    while true do
-        if Job and Job.State then
-            updateLabel(StatusLabel, "Status: " .. tostring(Job.State.Status or "IDLE"))
-            updateLabel(RouteLabel, "Rute Aktif: " .. tostring(Job.State.CurrentRoute or "-"))
-            updateLabel(TimerLabel, string.format("Sisa Waktu: %ds", Job.State.RemainingSeconds or 0))
-            updateLabel(TripLabel, "Total Trip: " .. tostring(Job.State.TripCount or 0))
-            local e = tostring(Job.State.TotalEarnings or 0):reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
-            updateLabel(EarningsLabel, "Estimasi Gaji: Rp " .. e)
-        end
-        task.wait(0.2)
-    end
-end)
-
--- TAB 2: SETTINGS & MISC
-local SettingsTab = TabGroup:Tab({
-    Name = "Settings",
-    Image = "rbxassetid://10734950309"
+-- TAB 2: SETTINGS & UTILITY
+local SettingsTab = Window:Tab({
+    Title = "Settings",
+    Icon = "settings",
 })
 
-local SectionSettings = SettingsTab:Section({
-    Side = "Left"
-})
-
-SectionSettings:Toggle({
-    Name = "Anti-Lag (Disable 3D Render)",
+SettingsTab:Toggle({
+    Title = "Anti-Lag (Disable 3D Render)",
+    Desc = "Matikan render dunia 3D untuk menghemat beban CPU & GPU saat AFK",
     Default = false,
     Callback = function(value)
         pcall(function()
             RunService:Set3dRenderingEnabled(not value)
         end)
-    end
+    end,
 })
 
-SectionSettings:Button({
-    Name = "Teleport ke Depot Truck",
+SettingsTab:Button({
+    Title = "Teleport ke Depot Truck",
+    Desc = "Pindahkan karakter ke depot kargo starter Surabaya",
     Callback = function()
         Job.TeleportHQ()
-    end
+        WindUI:Notify({
+            Title = "OE Hub",
+            Content = "Teleportasi ke Depot Starter Truk berhasil!",
+            Icon = "map-pin",
+            Duration = 3
+        })
+    end,
 })
 
-SectionSettings:Button({
-    Name = "Despawn Mobil / Reset Job",
+SettingsTab:Button({
+    Title = "Despawn Mobil / Reset Job",
+    Desc = "Reset role pengemudi truk dan bersihkan mobil",
     Callback = function()
         fireJobRemote("Unemployee")
         task.wait(0.1)
         fireJobRemote("Truck")
-    end
+        WindUI:Notify({
+            Title = "OE Hub",
+            Content = "Job Truck & Kendaraan berhasil di-reset.",
+            Icon = "rotate-ccw",
+            Duration = 3
+        })
+    end,
 })
 
-FarmTab:Select()
+-- Background Heartbeat Sinkronisasi Data Job.State ke WindUI Paragraph
+task.spawn(function()
+    while true do
+        if Job and Job.State then
+            local statusTxt = tostring(Job.State.Status or "IDLE")
+            local routeTxt = tostring(Job.State.CurrentRoute or "-")
+            local timerTxt = string.format("%ds", Job.State.RemainingSeconds or 0)
+            local tripTxt = tostring(Job.State.TripCount or 0)
+            local e = tostring(Job.State.TotalEarnings or 0):reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
+            local earningsTxt = "Rp " .. e
 
-Window:Notify({
+            pcall(function()
+                if StatsParagraph and StatsParagraph.SetDesc then
+                    StatsParagraph:SetDesc(string.format(
+                        "Status: %s\nRute Aktif: %s\nSisa Waktu Kargo: %s\nTotal Trip: %s\nEstimasi Gaji: %s",
+                        statusTxt, routeTxt, timerTxt, tripTxt, earningsTxt
+                    ))
+                end
+            end)
+        end
+        task.wait(0.3)
+    end
+end)
+
+WindUI:Notify({
     Title = "OE Hub In-Game",
-    Description = "Maclib UI Siap Digunakan! Tekan RightControl untuk Hide/Show UI.",
-    Lifetime = 5
+    Content = "WindUI v1.6.66 Siap Digunakan!",
+    Icon = "truck",
+    Duration = 5
 })
