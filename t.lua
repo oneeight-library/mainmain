@@ -61,15 +61,19 @@ local Scheduler = {
     end
 }
 
-local Log = {
-    Enabled = false,
-    SetEnabled = function(self, s) self.Enabled = (s == true) end,
-    Scope = function(name) return Log end,
-    Info = function(...) end,
-    Warn = function(...) end,
-    Success = function(...) end,
-    Error = function(...) end
-}
+local Log = {}
+Log.Enabled = false
+Log.SetEnabled = function(a, b)
+    local val = (b ~= nil) and b or a
+    Log.Enabled = (val == true)
+end
+Log.Scope = function(name)
+    return Log
+end
+Log.Info = function(...) end
+Log.Warn = function(...) end
+Log.Success = function(...) end
+Log.Error = function(...) end
 
 local Notify = {
     Success = function(...) end,
