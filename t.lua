@@ -1790,9 +1790,7 @@ function Job.Start(payload)
 
     pcall(function()
         GuiService.GameplayPausedNotificationEnabled = false
-        if getconnections then
-            for _, conn in pairs(getconnections(LocalPlayer.Idled)) do conn:Disable() end
-        end
+        -- [Anticheat Safe] getconnections disabled
     end)
 
     if Log then Log.Success("Auto Farm Truck Driver CDID Dimulai!") end
@@ -2560,7 +2558,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 _G.OE_WindUI = WindUI
 
 -- ==============================================================================
--- ANTI-AFK ENGINE (TRIPLE-LAYER SAFETY NET: GAMEPLAY PAUSE, IDLED, & PULSE)
+-- ANTI-AFK ENGINE (NATURAL EVENT LISTENER & PROACTIVE PULSE - NO GETCONNECTIONS)
 -- ==============================================================================
 local _antiAfkEnabled = true
 local _antiAfkConn = nil
@@ -2575,16 +2573,7 @@ local function startAntiAFK()
         end
     end)
 
-    -- Layer 2: Matikan semua koneksi Idled internal client jika didukung executor
-    pcall(function()
-        if getconnections then
-            for _, conn in pairs(getconnections(LocalPlayer.Idled)) do
-                pcall(function() conn:Disable() end)
-            end
-        end
-    end)
-
-    -- Layer 3: Simulasi Virtual Input reaktif saat Idled terpicu
+    -- Layer 2: Natural Idled Listener (100% Legal Luau API - Zero Memory Tampering)
     pcall(function()
         _antiAfkConn = LocalPlayer.Idled:Connect(function()
             if not _antiAfkEnabled then return end
@@ -2606,10 +2595,10 @@ end
 -- Nyalakan proteksi Anti-AFK default aktif sejak script dieksekusi
 startAntiAFK()
 
--- Layer 4: Proactive Pulse tiap 10 Menit (Proteksi saat game di-minimize)
+-- Layer 3: Proactive Heartbeat tiap 5 Menit (300 detik) - Mencegah idle 20 menit saat di-minimize
 task.spawn(function()
     while true do
-        task.wait(600)
+        task.wait(300)
         if _antiAfkEnabled then
             pcall(function()
                 VirtualUser:CaptureController()
