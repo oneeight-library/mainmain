@@ -15,6 +15,7 @@
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
 
 -- [ENVIRONMENT DISPATCHER EMULATOR]
@@ -41,13 +42,28 @@ local Trove = {
             end
             self._objects = {}
         end
+        t.Destroy = t.Clean
         return t
     end
 }
 
 local Scheduler = {
-    Sleep = task.wait,
-    Spawn = task.spawn,
+    Sleep = function(seconds)
+        return task.wait(tonumber(seconds) or 0)
+    end,
+    Spawn = function(taskName, workerFn, onErrorFn)
+        local fn = (type(workerFn) == "function") and workerFn or ((type(taskName) == "function") and taskName or nil)
+        if not fn then return nil end
+        return task.spawn(function(...)
+            local ok, err = pcall(fn, ...)
+            if not ok then
+                warn("[OE Hub Task Error] [" .. tostring(taskName) .. "]: " .. tostring(err))
+                if type(onErrorFn) == "function" then
+                    pcall(onErrorFn, err)
+                end
+            end
+        end)
+    end,
     WaitFor = function(predicate, timeoutSeconds, pollInterval)
         local start = os.clock()
         timeoutSeconds = timeoutSeconds or 10.0
