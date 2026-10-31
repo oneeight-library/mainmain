@@ -1490,7 +1490,7 @@ local function rerollDepotRoute(root, starterPrompt)
         Job.State.CurrentRoute = wp.Name or "Destination"
 
         -- Verifikasi Strict Rute Terbaik CDID: Index 3 (Sidoarjo) atau Index 4 (Malang)
-        local isBestRoute = (wp.RouteIndex == 3 or wp.RouteIndex == 4) or (dist >= Job.Config.MinDistance)
+        local isBestRoute = (wp.RouteIndex == 3 or wp.RouteIndex == 4 or tonumber(wp.RouteIndex) == 3 or tonumber(wp.RouteIndex) == 4) or (dist >= Job.Config.MinDistance)
 
         if isBestRoute then
             if Log then
@@ -1572,14 +1572,20 @@ local function runFarmLoop()
 
         -- LANGKAH 3 & 4: Teleport ke Spawner Truk
         Job.State.Status = "GETTING_TRUCK"
-        local spawnerFolder = Workspace:FindFirstChild("Etc")
-            and Workspace.Etc:FindFirstChild("Job")
-            and Workspace.Etc.Job:FindFirstChild("Truck")
-            and Workspace.Etc.Job.Truck:FindFirstChild("Spawner")
-        local spawnerPrompt = spawnerFolder and spawnerFolder:FindFirstChildWhichIsA("ProximityPrompt", true)
 
-        if not spawnerPrompt or not spawnerPrompt.Parent then
-            if Log then Log.Warn("Spawner folder/prompt belum selesai stream. Menunggu...") end
+        local spawnerPrompt = nil
+        local okSpawner, foundSpawner = waitFor(function()
+            local sFolder = Workspace:FindFirstChild("Etc")
+                and Workspace.Etc:FindFirstChild("Job")
+                and Workspace.Etc.Job:FindFirstChild("Truck")
+                and Workspace.Etc.Job.Truck:FindFirstChild("Spawner")
+            return sFolder and sFolder:FindFirstChildWhichIsA("ProximityPrompt", true)
+        end, 6.0, 0.1)
+
+        if okSpawner and foundSpawner and foundSpawner.Parent then
+            spawnerPrompt = foundSpawner
+        else
+            if Log then Log.Warn("Spawner folder/prompt belum selesai stream. Mencoba lagi...") end
             sleep(0.5)
             continue
         end
